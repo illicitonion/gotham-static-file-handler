@@ -3,6 +3,7 @@ extern crate gotham;
 extern crate gotham_derive;
 extern crate hyper;
 extern crate mime;
+extern crate mime_guess;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -49,14 +50,17 @@ impl StaticFileHandler {
         };
         let response = path.metadata().and_then(|meta| {
             let mut contents = Vec::with_capacity(meta.len() as usize);
-            std::fs::File::open(path).and_then(|mut f| f.read_to_end(&mut contents))?;
+            std::fs::File::open(&path).and_then(|mut f| f.read_to_end(&mut contents))?;
             Ok(contents)
-        }).map(|contents| gotham::http::response::create_response(
+        }).map(|contents| {
+            let extension = path.extension().and_then(|p| p.to_str()).unwrap_or_default();
+            let mime_type = mime_guess::get_mime_type(extension);
+            gotham::http::response::create_response(
                 &state,
                 hyper::StatusCode::Ok,
-                Some((contents, mime::TEXT_PLAIN))
+                Some((contents, mime_type))
             )
-        ).unwrap_or_else(|err| error_response(&state, err));
+        }).unwrap_or_else(|err| error_response(&state, err));
         (state, response)
     }
 }
